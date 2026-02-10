@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 import time
 from core import logger, csv_files
 from routers import all_routers
@@ -7,6 +8,13 @@ app = FastAPI(
     title="Elden Ring API",
     description="API pour accéder aux données du dataset Elden Ring",
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
