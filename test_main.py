@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
-from main import app, datasets, filter_dataframe
+from main import app
+from core import datasets, filter_dataframe
 import pandas as pd
 
 
