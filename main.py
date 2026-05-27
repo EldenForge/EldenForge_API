@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 import time
 from core import logger, csv_files
 from routers import all_routers
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 app = FastAPI(
     title="Elden Ring API",
@@ -31,6 +34,10 @@ async def log_requests(request: Request, call_next):
 
     return response
 
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Enregistrement de tous les routers
 for router, prefix, tags in all_routers:

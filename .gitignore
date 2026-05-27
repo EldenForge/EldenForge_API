@@ -207,3 +207,7 @@ marimo/_lsp/
 __marimo__/
 
 .claude
+
+# EldenForge specific
+*.db
+api.log

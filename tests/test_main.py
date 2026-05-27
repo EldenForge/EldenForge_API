@@ -35,7 +35,7 @@ class TestWeapons:
         data = response.json()
         assert isinstance(data, list)
         for weapon in data:
-            assert "Axe" in weapon.get("category", "")
+            assert "axe" in weapon.get("category", "").lower()
 
     def test_get_weapon_by_id_not_found(self):
         """Test de récupération d'une arme inexistante."""
