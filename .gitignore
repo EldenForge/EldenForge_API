@@ -211,3 +211,5 @@ __marimo__/
 # EldenForge specific
 *.db
 api.log
+# Scrap brut DLC (source de import_dlc.py, ~29 Mo) — non versionne
+Dataset/eldenringScrap/
