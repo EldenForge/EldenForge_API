@@ -7,7 +7,8 @@ class Base(DeclarativeBase):
 
 from .user import User  # noqa: E402
 from .build import Build  # noqa: E402
+from .build_like import BuildLike  # noqa: E402
 from .email_token import EmailToken  # noqa: E402
 from .refresh_token import RefreshToken  # noqa: E402
 
-__all__ = ["Base", "User", "Build", "EmailToken", "RefreshToken"]
+__all__ = ["Base", "User", "Build", "BuildLike", "EmailToken", "RefreshToken"]

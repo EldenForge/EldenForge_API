@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 
-from sqlalchemy import delete as sql_delete, select
+from sqlalchemy import cast, delete as sql_delete, or_, select
+from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY
+from sqlalchemy.types import Text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.build import Build
@@ -23,6 +26,40 @@ class NotBuildOwnerError(BuildError):
     """L'utilisateur n'est pas propriétaire du build (403)."""
 
 
+@dataclass
+class ForkedFromRow:
+    id: object
+    name: str
+    author_pseudo: str
+
+
+@dataclass
+class PublicBuildRow:
+    id: object
+    name: str
+    description: str | None
+    tags: list
+    like_count: int
+    created_at: object
+    author_pseudo: str
+    liked_by_me: bool
+
+
+@dataclass
+class PublicBuildDetailRow:
+    id: object
+    name: str
+    description: str | None
+    data: dict
+    tags: list
+    like_count: int
+    created_at: object
+    updated_at: object
+    author_pseudo: str
+    liked_by_me: bool
+    forked_from: ForkedFromRow | None
+
+
 class BuildService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -34,6 +71,7 @@ class BuildService:
             description=data.description,
             data=data.data,
             is_public=data.is_public,
+            tags=data.tags,
         )
         self._session.add(build)
         await self._session.flush()
@@ -81,3 +119,107 @@ class BuildService:
             raise NotBuildOwnerError(str(build_id))
         await self._session.execute(sql_delete(Build).where(Build.id == build_id))
         await self._session.flush()
+
+    async def list_public(
+        self, viewer, search, tags, sort: str, limit: int, offset: int
+    ) -> list[PublicBuildRow]:
+        from models.build_like import BuildLike
+        from models.user import User as _User
+
+        stmt = (
+            select(Build, _User.pseudo.label("author_pseudo"))
+            .join(_User, _User.id == Build.user_id)
+            .where(Build.is_public.is_(True))
+        )
+        if search:
+            like = f"%{search}%"
+            stmt = stmt.where(or_(Build.name.ilike(like), _User.pseudo.ilike(like)))
+        if tags:
+            stmt = stmt.where(Build.tags.op("@>")(cast(tags, PG_ARRAY(Text))))
+        if sort == "popular":
+            stmt = stmt.order_by(Build.like_count.desc(), Build.created_at.desc())
+        else:
+            stmt = stmt.order_by(Build.created_at.desc())
+        stmt = stmt.limit(limit).offset(offset)
+
+        records = (await self._session.execute(stmt)).all()
+
+        liked_ids: set = set()
+        if viewer is not None and records:
+            ids = [b.id for b, _ in records]
+            liked = await self._session.execute(
+                select(BuildLike.build_id).where(
+                    BuildLike.user_id == viewer.id, BuildLike.build_id.in_(ids)
+                )
+            )
+            liked_ids = {r[0] for r in liked.all()}
+
+        return [
+            PublicBuildRow(
+                id=b.id, name=b.name, description=b.description, tags=list(b.tags),
+                like_count=b.like_count, created_at=b.created_at,
+                author_pseudo=author_pseudo, liked_by_me=b.id in liked_ids,
+            )
+            for b, author_pseudo in records
+        ]
+
+    async def get_public(self, viewer, build_id) -> PublicBuildDetailRow:
+        from models.build_like import BuildLike
+        from models.user import User as _User
+
+        build = await self._session.get(Build, build_id)
+        if build is None:
+            raise BuildNotFoundError(str(build_id))
+        is_owner = viewer is not None and build.user_id == viewer.id
+        if not build.is_public and not is_owner:
+            raise BuildNotFoundError(str(build_id))
+
+        author_pseudo = (
+            await self._session.execute(select(_User.pseudo).where(_User.id == build.user_id))
+        ).scalar_one()
+
+        liked_by_me = False
+        if viewer is not None:
+            liked_by_me = (
+                await self._session.execute(
+                    select(BuildLike.id).where(
+                        BuildLike.user_id == viewer.id, BuildLike.build_id == build.id
+                    )
+                )
+            ).first() is not None
+
+        forked_from = None
+        if build.forked_from_id is not None:
+            src = await self._session.get(Build, build.forked_from_id)
+            if src is not None:
+                src_author = (
+                    await self._session.execute(select(_User.pseudo).where(_User.id == src.user_id))
+                ).scalar_one()
+                forked_from = ForkedFromRow(id=src.id, name=src.name, author_pseudo=src_author)
+
+        return PublicBuildDetailRow(
+            id=build.id, name=build.name, description=build.description, data=build.data,
+            tags=list(build.tags), like_count=build.like_count,
+            created_at=build.created_at, updated_at=build.updated_at,
+            author_pseudo=author_pseudo, liked_by_me=liked_by_me, forked_from=forked_from,
+        )
+
+    async def fork(self, user, build_id) -> Build:
+        source = await self._session.get(Build, build_id)
+        if source is None:
+            raise BuildNotFoundError(str(build_id))
+        is_owner = source.user_id == user.id
+        if not source.is_public and not is_owner:
+            raise BuildNotFoundError(str(build_id))
+        fork = Build(
+            user_id=user.id,
+            name=f"{source.name} (copy)"[:100],
+            description=source.description,
+            data=source.data,
+            is_public=False,
+            tags=list(source.tags),
+            forked_from_id=source.id,
+        )
+        self._session.add(fork)
+        await self._session.flush()
+        return fork

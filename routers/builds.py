@@ -90,3 +90,19 @@ async def delete_build(
     except NotBuildOwnerError:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not your build")
     await session.commit()
+
+
+@router.post("/{build_id}/fork", response_model=BuildOut, status_code=status.HTTP_201_CREATED)
+async def fork_build(
+    build_id: uuid.UUID,
+    current: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> BuildOut:
+    svc = BuildService(session)
+    try:
+        fork = await svc.fork(current, build_id)
+    except BuildNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Build not found")
+    await session.commit()
+    await session.refresh(fork)
+    return BuildOut.model_validate(fork)

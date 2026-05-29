@@ -5,7 +5,23 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+ALLOWED_TAGS: list[str] = [
+    "Strength", "Dexterity", "Intelligence", "Faith", "Arcane", "Quality",
+    "Bleed", "Sorceries", "Incantations", "Poison", "Frost", "Lightning", "Fire",
+    "PvP", "PvE", "Boss", "Beginner", "End-game", "No-hit",
+]
+_ALLOWED_TAGS_SET = set(ALLOWED_TAGS)
+
+
+def _validate_tags(tags: list[str]) -> list[str]:
+    unknown = [t for t in tags if t not in _ALLOWED_TAGS_SET]
+    if unknown:
+        raise ValueError(f"Unknown tags: {unknown}. Allowed: {ALLOWED_TAGS}")
+    seen: set[str] = set()
+    return [t for t in tags if not (t in seen or seen.add(t))]
 
 
 class BuildCreateIn(BaseModel):
@@ -13,6 +29,12 @@ class BuildCreateIn(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     data: dict[str, Any]
     is_public: bool = False
+    tags: list[str] = Field(default_factory=list)
+
+    @field_validator("tags")
+    @classmethod
+    def check_tags(cls, v: list[str]) -> list[str]:
+        return _validate_tags(v)
 
 
 class BuildUpdateIn(BaseModel):
@@ -21,6 +43,12 @@ class BuildUpdateIn(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     data: dict[str, Any] | None = None
     is_public: bool | None = None
+    tags: list[str] | None = None
+
+    @field_validator("tags")
+    @classmethod
+    def check_tags(cls, v: list[str] | None) -> list[str] | None:
+        return _validate_tags(v) if v is not None else None
 
 
 class BuildListItem(BaseModel):
@@ -31,6 +59,7 @@ class BuildListItem(BaseModel):
     is_public: bool
     created_at: datetime
     updated_at: datetime
+    tags: list[str] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -45,5 +74,44 @@ class BuildOut(BaseModel):
     is_public: bool
     created_at: datetime
     updated_at: datetime
+    tags: list[str] = Field(default_factory=list)
+    forked_from_id: uuid.UUID | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublicBuildListItem(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str | None
+    tags: list[str]
+    like_count: int
+    created_at: datetime
+    author_pseudo: str
+    liked_by_me: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ForkedFromInfo(BaseModel):
+    id: uuid.UUID
+    name: str
+    author_pseudo: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublicBuildOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str | None
+    data: dict
+    tags: list[str]
+    like_count: int
+    created_at: datetime
+    updated_at: datetime
+    author_pseudo: str
+    liked_by_me: bool = False
+    forked_from: ForkedFromInfo | None = None
 
     model_config = ConfigDict(from_attributes=True)

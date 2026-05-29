@@ -28,6 +28,7 @@ from models import Base
 # avant que create_all soit appelé. Ajouter les imports au fur et à mesure des tâches.
 from models.user import User  # noqa: F401
 from models.build import Build  # noqa: F401
+from models.build_like import BuildLike  # noqa: F401
 from models.email_token import EmailToken  # noqa: F401
 from models.refresh_token import RefreshToken  # noqa: F401
 
