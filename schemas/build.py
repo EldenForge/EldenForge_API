@@ -112,6 +112,12 @@ class PublicBuildOut(BaseModel):
     updated_at: datetime
     author_pseudo: str
     liked_by_me: bool = False
+    is_mine: bool = False
     forked_from: ForkedFromInfo | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class LikeStatus(BaseModel):
+    liked: bool
+    like_count: int

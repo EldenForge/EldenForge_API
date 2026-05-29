@@ -57,6 +57,7 @@ class PublicBuildDetailRow:
     updated_at: object
     author_pseudo: str
     liked_by_me: bool
+    is_mine: bool
     forked_from: ForkedFromRow | None
 
 
@@ -201,8 +202,48 @@ class BuildService:
             id=build.id, name=build.name, description=build.description, data=build.data,
             tags=list(build.tags), like_count=build.like_count,
             created_at=build.created_at, updated_at=build.updated_at,
-            author_pseudo=author_pseudo, liked_by_me=liked_by_me, forked_from=forked_from,
+            author_pseudo=author_pseudo, liked_by_me=liked_by_me, is_mine=is_owner,
+            forked_from=forked_from,
         )
+
+    async def like(self, user, build_id) -> tuple[bool, int]:
+        """Like idempotent d'un build public. Renvoie (liked, like_count)."""
+        from models.build_like import BuildLike
+
+        build = await self._session.get(Build, build_id)
+        if build is None or not build.is_public:
+            raise BuildNotFoundError(str(build_id))
+
+        existing = (
+            await self._session.execute(
+                select(BuildLike.id).where(
+                    BuildLike.user_id == user.id, BuildLike.build_id == build_id
+                )
+            )
+        ).first()
+        if existing is None:
+            self._session.add(BuildLike(user_id=user.id, build_id=build_id))
+            build.like_count += 1
+            await self._session.flush()
+        return True, build.like_count
+
+    async def unlike(self, user, build_id) -> tuple[bool, int]:
+        """Unlike idempotent. Renvoie (liked, like_count)."""
+        from models.build_like import BuildLike
+
+        build = await self._session.get(Build, build_id)
+        if build is None or not build.is_public:
+            raise BuildNotFoundError(str(build_id))
+
+        result = await self._session.execute(
+            sql_delete(BuildLike).where(
+                BuildLike.user_id == user.id, BuildLike.build_id == build_id
+            )
+        )
+        if result.rowcount and build.like_count > 0:
+            build.like_count -= 1
+            await self._session.flush()
+        return False, build.like_count
 
     async def fork(self, user, build_id) -> Build:
         source = await self._session.get(Build, build_id)

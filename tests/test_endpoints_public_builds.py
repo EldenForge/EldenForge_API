@@ -80,3 +80,58 @@ async def test_create_rejects_unknown_tag(client, db_session):
     await _verified_login(client, db_session, REG)
     r = await client.post("/builds", json={"name": "x", "data": {}, "tags": ["Nope"]})
     assert r.status_code == 422
+
+
+async def test_like_then_unlike_idempotent(client, db_session):
+    await _verified_login(client, db_session, REG)
+    created = await client.post("/builds", json={"name": "pub", "data": {}, "is_public": True})
+    bid = created.json()["id"]
+    await client.post("/auth/logout")
+    await _verified_login(client, db_session, REG2)
+
+    r = await client.post(f"/public/builds/{bid}/like")
+    assert r.status_code == 200, r.text
+    assert r.json() == {"liked": True, "like_count": 1}
+    # liking again stays at 1
+    r = await client.post(f"/public/builds/{bid}/like")
+    assert r.json() == {"liked": True, "like_count": 1}
+
+    d = await client.get(f"/public/builds/{bid}")
+    assert d.json()["liked_by_me"] is True
+    assert d.json()["like_count"] == 1
+
+    r = await client.delete(f"/public/builds/{bid}/like")
+    assert r.json() == {"liked": False, "like_count": 0}
+    # unliking again stays at 0
+    r = await client.delete(f"/public/builds/{bid}/like")
+    assert r.json() == {"liked": False, "like_count": 0}
+
+
+async def test_like_requires_auth(client, db_session):
+    await _verified_login(client, db_session, REG)
+    created = await client.post("/builds", json={"name": "pub", "data": {}, "is_public": True})
+    bid = created.json()["id"]
+    await client.post("/auth/logout")
+    r = await client.post(f"/public/builds/{bid}/like")
+    assert r.status_code == 401
+
+
+async def test_like_404_on_non_public(client, db_session):
+    await _verified_login(client, db_session, REG)
+    created = await client.post("/builds", json={"name": "secret", "data": {}, "is_public": False})
+    bid = created.json()["id"]
+    r = await client.post(f"/public/builds/{bid}/like")
+    assert r.status_code == 404
+
+
+async def test_is_mine_flag(client, db_session):
+    await _verified_login(client, db_session, REG)
+    created = await client.post("/builds", json={"name": "pub", "data": {}, "is_public": True})
+    bid = created.json()["id"]
+    d = await client.get(f"/public/builds/{bid}")
+    assert d.json()["is_mine"] is True
+
+    await client.post("/auth/logout")
+    await _verified_login(client, db_session, REG2)
+    d = await client.get(f"/public/builds/{bid}")
+    assert d.json()["is_mine"] is False

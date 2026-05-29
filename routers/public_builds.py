@@ -6,10 +6,10 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.auth_deps import get_current_user_optional
+from core.auth_deps import get_current_user, get_current_user_optional
 from core.db import get_session
 from models.user import User
-from schemas.build import PublicBuildListItem, PublicBuildOut
+from schemas.build import LikeStatus, PublicBuildListItem, PublicBuildOut
 from services.build_service import BuildNotFoundError, BuildService
 
 router = APIRouter()
@@ -45,3 +45,33 @@ async def get_public_build(
     except BuildNotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Build not found")
     return PublicBuildOut.model_validate(row)
+
+
+@router.post("/builds/{build_id}/like", response_model=LikeStatus)
+async def like_build(
+    build_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> LikeStatus:
+    svc = BuildService(session)
+    try:
+        liked, count = await svc.like(user=user, build_id=build_id)
+    except BuildNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Build not found")
+    await session.commit()
+    return LikeStatus(liked=liked, like_count=count)
+
+
+@router.delete("/builds/{build_id}/like", response_model=LikeStatus)
+async def unlike_build(
+    build_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> LikeStatus:
+    svc = BuildService(session)
+    try:
+        liked, count = await svc.unlike(user=user, build_id=build_id)
+    except BuildNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Build not found")
+    await session.commit()
+    return LikeStatus(liked=liked, like_count=count)
