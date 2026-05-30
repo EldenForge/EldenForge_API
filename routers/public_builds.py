@@ -19,16 +19,19 @@ router = APIRouter()
 async def list_public_builds(
     search: str | None = Query(default=None),
     tags: str | None = Query(default=None, description="CSV de tags"),
-    sort: str = Query(default="recent", pattern="^(recent|popular)$"),
+    sort: str = Query(default="recent", pattern="^(recent|popular|trending)$"),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    item: str | None = Query(default=None, description="ID d'item à chercher dans les builds"),
+    author: str | None = Query(default=None, description="Filtre par pseudo d'auteur (ILIKE)"),
     viewer: User | None = Depends(get_current_user_optional),
     session: AsyncSession = Depends(get_session),
 ) -> list[PublicBuildListItem]:
     tag_list = [t for t in (tags.split(",") if tags else []) if t]
     svc = BuildService(session)
     rows = await svc.list_public(
-        viewer=viewer, search=search, tags=tag_list or None, sort=sort, limit=limit, offset=offset
+        viewer=viewer, search=search, tags=tag_list or None, sort=sort,
+        limit=limit, offset=offset, item=item, author=author,
     )
     return [PublicBuildListItem.model_validate(r) for r in rows]
 

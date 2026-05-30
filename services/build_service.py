@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+import sqlalchemy as sa
 from sqlalchemy import cast, delete as sql_delete, or_, select
 from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY
 from sqlalchemy.types import Text
@@ -125,8 +126,10 @@ class BuildService:
         await self._session.flush()
 
     async def list_public(
-        self, viewer, search, tags, sort: str, limit: int, offset: int
+        self, viewer, search, tags, sort: str, limit: int, offset: int,
+        item: str | None = None, author: str | None = None,
     ) -> list[PublicBuildRow]:
+        from sqlalchemy import func
         from models.build_like import BuildLike
         from models.user import User as _User
 
@@ -138,10 +141,33 @@ class BuildService:
         if search:
             like = f"%{search}%"
             stmt = stmt.where(or_(Build.name.ilike(like), _User.pseudo.ilike(like)))
+        if author:
+            stmt = stmt.where(_User.pseudo.ilike(f"%{author}%"))
         if tags:
             stmt = stmt.where(Build.tags.op("@>")(cast(tags, PG_ARRAY(Text))))
+        if item:
+            # Recherche brute dans le JSONB sérialisé : les ids sont uniques,
+            # faux positifs très improbables. MVP simple.
+            stmt = stmt.where(cast(Build.data, Text).ilike(f"%{item}%"))
         if sort == "popular":
             stmt = stmt.order_by(Build.like_count.desc(), Build.created_at.desc())
+        elif sort == "trending":
+            # Likes des 7 derniers jours = trending. Outerjoin pour ne pas filtrer
+            # les builds sans like récent (ils tombent à 0 en fin de liste).
+            recent_likes_subq = (
+                select(
+                    BuildLike.build_id,
+                    func.count(BuildLike.id).label("recent_likes"),
+                )
+                .where(BuildLike.created_at > func.now() - sa.text("interval '7 days'"))
+                .group_by(BuildLike.build_id)
+                .subquery()
+            )
+            stmt = stmt.outerjoin(recent_likes_subq, Build.id == recent_likes_subq.c.build_id)
+            stmt = stmt.order_by(
+                func.coalesce(recent_likes_subq.c.recent_likes, 0).desc(),
+                Build.created_at.desc(),
+            )
         else:
             stmt = stmt.order_by(Build.created_at.desc())
         stmt = stmt.limit(limit).offset(offset)
