@@ -98,6 +98,7 @@ class PublicBuildListItem(BaseModel):
     liked_by_me: bool = False
     intent: BuildIntent = "pve"
     primary_weapon_image: str | None = None
+    has_dlc: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -124,6 +125,7 @@ class PublicBuildOut(BaseModel):
     is_mine: bool = False
     intent: BuildIntent = "pve"
     forked_from: ForkedFromInfo | None = None
+    has_dlc: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

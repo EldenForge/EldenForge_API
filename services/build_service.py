@@ -34,6 +34,35 @@ class ForkedFromRow:
     author_pseudo: str
 
 
+def _iter_item_ids(data):
+    """Yield les item-ids referencés dans un payload de build (sans toucher au guide)."""
+    if not isinstance(data, dict):
+        return
+    for key in ("armor", "weapons", "ashes", "ammos"):
+        section = data.get(key)
+        if isinstance(section, dict):
+            for v in section.values():
+                if isinstance(v, str):
+                    yield v
+                elif isinstance(v, list):
+                    for x in v:
+                        if isinstance(x, str):
+                            yield x
+    for key in ("talismans", "spells"):
+        arr = data.get(key)
+        if isinstance(arr, list):
+            for x in arr:
+                if isinstance(x, str):
+                    yield x
+    spirit = data.get("spirit")
+    if isinstance(spirit, str):
+        yield spirit
+
+
+def _has_dlc_items(data) -> bool:
+    return any(s.startswith("sote-") for s in _iter_item_ids(data))
+
+
 @dataclass
 class PublicBuildRow:
     id: object
@@ -46,6 +75,7 @@ class PublicBuildRow:
     liked_by_me: bool
     intent: str
     primary_weapon_image: str | None = None
+    has_dlc: bool = False
 
 
 @dataclass
@@ -63,6 +93,7 @@ class PublicBuildDetailRow:
     is_mine: bool
     intent: str
     forked_from: ForkedFromRow | None
+    has_dlc: bool = False
 
 
 class BuildService:
@@ -209,6 +240,7 @@ class BuildService:
                 primary_weapon_image=img_by_id.get(
                     ((b.data or {}).get("weapons") or {}).get("right") or "", None
                 ) or None,
+                has_dlc=_has_dlc_items(b.data),
             )
             for b, author_pseudo in records
         ]
@@ -254,6 +286,7 @@ class BuildService:
             author_pseudo=author_pseudo, liked_by_me=liked_by_me, is_mine=is_owner,
             intent=build.intent,
             forked_from=forked_from,
+            has_dlc=_has_dlc_items(build.data),
         )
 
     async def like(self, user, build_id) -> tuple[bool, int]:
