@@ -135,3 +135,40 @@ async def test_is_mine_flag(client, db_session):
     await _verified_login(client, db_session, REG2)
     d = await client.get(f"/public/builds/{bid}")
     assert d.json()["is_mine"] is False
+
+
+async def test_intent_default_pve(client, db_session):
+    await _verified_login(client, db_session, REG)
+    r = await client.post("/builds", json={"name": "b", "data": {}})
+    assert r.status_code == 201
+    assert r.json()["intent"] == "pve"
+
+
+async def test_intent_explicit_and_surfaces_public(client, db_session):
+    await _verified_login(client, db_session, REG)
+    r = await client.post("/builds", json={"name": "pvp build", "data": {}, "is_public": True, "intent": "pvp"})
+    assert r.status_code == 201
+    assert r.json()["intent"] == "pvp"
+    bid = r.json()["id"]
+
+    public_detail = await client.get(f"/public/builds/{bid}")
+    assert public_detail.json()["intent"] == "pvp"
+    public_list = await client.get("/public/builds")
+    assert any(b["intent"] == "pvp" and b["id"] == bid for b in public_list.json())
+
+
+async def test_intent_invalid_rejected(client, db_session):
+    await _verified_login(client, db_session, REG)
+    r = await client.post("/builds", json={"name": "b", "data": {}, "intent": "raid"})
+    assert r.status_code == 422
+
+
+async def test_fork_copies_intent(client, db_session):
+    await _verified_login(client, db_session, REG)
+    src = await client.post("/builds", json={"name": "Coop heal", "data": {}, "is_public": True, "intent": "coop"})
+    bid = src.json()["id"]
+    await client.post("/auth/logout")
+    await _verified_login(client, db_session, REG2)
+    fork = await client.post(f"/builds/{bid}/fork")
+    assert fork.status_code == 201
+    assert fork.json()["intent"] == "coop"

@@ -39,6 +39,9 @@ class Build(Base):
     forked_from_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("builds.id", ondelete="SET NULL"), nullable=True
     )
+    intent: Mapped[str] = mapped_column(
+        Text, nullable=False, default="pve", server_default="pve"
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
@@ -55,6 +58,10 @@ class Build(Base):
         CheckConstraint(
             "description IS NULL OR char_length(description) <= 2000",
             name="ck_builds_description_length",
+        ),
+        CheckConstraint(
+            "intent IN ('pve','coop','pvp')",
+            name="ck_builds_intent",
         ),
         Index("ix_builds_user_updated", "user_id", "updated_at"),
     )

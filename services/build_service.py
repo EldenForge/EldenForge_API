@@ -43,6 +43,7 @@ class PublicBuildRow:
     created_at: object
     author_pseudo: str
     liked_by_me: bool
+    intent: str
 
 
 @dataclass
@@ -58,6 +59,7 @@ class PublicBuildDetailRow:
     author_pseudo: str
     liked_by_me: bool
     is_mine: bool
+    intent: str
     forked_from: ForkedFromRow | None
 
 
@@ -73,6 +75,7 @@ class BuildService:
             data=data.data,
             is_public=data.is_public,
             tags=data.tags,
+            intent=data.intent,
         )
         self._session.add(build)
         await self._session.flush()
@@ -160,6 +163,7 @@ class BuildService:
                 id=b.id, name=b.name, description=b.description, tags=list(b.tags),
                 like_count=b.like_count, created_at=b.created_at,
                 author_pseudo=author_pseudo, liked_by_me=b.id in liked_ids,
+                intent=b.intent,
             )
             for b, author_pseudo in records
         ]
@@ -203,6 +207,7 @@ class BuildService:
             tags=list(build.tags), like_count=build.like_count,
             created_at=build.created_at, updated_at=build.updated_at,
             author_pseudo=author_pseudo, liked_by_me=liked_by_me, is_mine=is_owner,
+            intent=build.intent,
             forked_from=forked_from,
         )
 
@@ -260,6 +265,7 @@ class BuildService:
             is_public=False,
             tags=list(source.tags),
             forked_from_id=source.id,
+            intent=source.intent,
         )
         self._session.add(fork)
         await self._session.flush()
