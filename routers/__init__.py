@@ -2,6 +2,7 @@ from .auth import router as auth_router
 from .builds import router as builds_router
 from .users import router as users_router
 from .public_builds import router as public_builds_router
+from .public_users import router as public_users_router
 from .ammos import router as ammos_router
 from .armors import router as armors_router
 from .ashes import router as ashes_router
@@ -24,6 +25,7 @@ all_routers = [
     (builds_router, "/builds", ["Builds"]),
     (users_router, "/users", ["Users"]),
     (public_builds_router, "/public", ["Public"]),
+    (public_users_router, "/public/users", ["Public Users"]),
     (ammos_router, "/ammos", ["Ammos"]),
     (armors_router, "/armors", ["Armors"]),
     (ashes_router, "/ashes", ["Ashes"]),

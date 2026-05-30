@@ -48,6 +48,14 @@ class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PublicUserProfile(BaseModel):
+    """Profil utilisateur publique (sans email ni infos sensibles)."""
+    pseudo: str
+    created_at: datetime
+    builds_count: int
+    total_likes_received: int
+
+
 class ForgotPasswordIn(BaseModel):
     email: EmailStr
 
