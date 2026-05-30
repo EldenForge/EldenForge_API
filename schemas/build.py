@@ -97,6 +97,7 @@ class PublicBuildListItem(BaseModel):
     author_pseudo: str
     liked_by_me: bool = False
     intent: BuildIntent = "pve"
+    primary_weapon_image: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

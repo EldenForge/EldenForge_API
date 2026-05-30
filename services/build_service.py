@@ -45,6 +45,7 @@ class PublicBuildRow:
     author_pseudo: str
     liked_by_me: bool
     intent: str
+    primary_weapon_image: str | None = None
 
 
 @dataclass
@@ -184,12 +185,30 @@ class BuildService:
             )
             liked_ids = {r[0] for r in liked.all()}
 
+        # Lookup batch des images d'arme primaire (pour le hero visuel des cartes)
+        from core import datasets as _datasets
+        wpn_ids: set[str] = set()
+        for b, _ in records:
+            wid = ((b.data or {}).get("weapons") or {}).get("right")
+            if isinstance(wid, str) and wid:
+                wpn_ids.add(wid)
+        img_by_id: dict[str, str] = {}
+        if wpn_ids:
+            df = _datasets.get("weapons")
+            if df is not None:
+                sub = df[df["id"].isin(wpn_ids)][["id", "image"]]
+                for _, r in sub.iterrows():
+                    img_by_id[str(r["id"])] = str(r["image"]) if r["image"] is not None else ""
+
         return [
             PublicBuildRow(
                 id=b.id, name=b.name, description=b.description, tags=list(b.tags),
                 like_count=b.like_count, created_at=b.created_at,
                 author_pseudo=author_pseudo, liked_by_me=b.id in liked_ids,
                 intent=b.intent,
+                primary_weapon_image=img_by_id.get(
+                    ((b.data or {}).get("weapons") or {}).get("right") or "", None
+                ) or None,
             )
             for b, author_pseudo in records
         ]
