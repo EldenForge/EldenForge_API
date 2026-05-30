@@ -18,7 +18,7 @@ DATASET_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Dataset
 
 # Liste des fichiers CSV disponibles
 csv_files = [
-    "ammos", "armors", "ashes", "bosses", "classes", "creatures",
+    "ammos", "armors", "ashes", "ashesOfWar", "bosses", "classes", "creatures",
     "incantations", "items", "locations", "npcs", "shields",
     "sorceries", "spirits", "talismans", "weapons"
 ]

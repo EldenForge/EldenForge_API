@@ -5,6 +5,7 @@ from .public_builds import router as public_builds_router
 from .ammos import router as ammos_router
 from .armors import router as armors_router
 from .ashes import router as ashes_router
+from .ashes_of_war import router as ashes_of_war_router
 from .bosses import router as bosses_router
 from .classes import router as classes_router
 from .creatures import router as creatures_router
@@ -26,6 +27,7 @@ all_routers = [
     (ammos_router, "/ammos", ["Ammos"]),
     (armors_router, "/armors", ["Armors"]),
     (ashes_router, "/ashes", ["Ashes"]),
+    (ashes_of_war_router, "/ashes_of_war", ["Ashes of War"]),
     (bosses_router, "/bosses", ["Bosses"]),
     (classes_router, "/classes", ["Classes"]),
     (creatures_router, "/creatures", ["Creatures"]),
