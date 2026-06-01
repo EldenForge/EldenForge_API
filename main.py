@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import time
@@ -6,6 +8,24 @@ from routers import all_routers
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+
+# ── Sentry (capture des exceptions Python). No-op si SENTRY_DSN absent. ──
+_sentry_dsn = os.getenv("SENTRY_DSN", "").strip()
+if _sentry_dsn:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        environment=os.getenv("SENTRY_ENVIRONMENT", "dev"),
+        release=os.getenv("SENTRY_RELEASE") or None,
+        # Echantillonnage des perfs ; 0.0 = aucun trace, on capture juste les erreurs.
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.0") or 0.0),
+        send_default_pii=False,
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+    )
+    logger.info(f"Sentry initialise (env={os.getenv('SENTRY_ENVIRONMENT', 'dev')})")
 
 app = FastAPI(
     title="Elden Ring API",
