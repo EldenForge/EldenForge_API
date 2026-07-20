@@ -1,0 +1,31 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--cov=.",
+    "--cov-report=term-missing",
+    "--cov-fail-under=80",
+]
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "tests/*",
+    "alembic/*",
+    "scripts/*",
+    "Dataset/*",
+    "venv/*",
+    ".venv/*",
+    "conftest.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "\\.\\.\\.",
+]

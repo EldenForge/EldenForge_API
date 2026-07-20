@@ -1,11 +1,55 @@
-name: Deploy
+name: CI/CD
 
 on:
   push:
+    branches: [main, recette, 'feat/**', 'fix/**']
+  pull_request:
     branches: [main, recette]
 
 jobs:
+  test-back:
+    name: Tests backend (pytest + pytest-cov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run pytest with coverage
+        env:
+          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          JWT_SECRET: dev-secret-for-tests-only
+        run: pytest tests/ --cov=. --cov-fail-under=80 --cov-report=term-missing --cov-report=html
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-back
+          path: htmlcov/
+          retention-days: 30
+
+  lint-back:
+    name: Lint backend (import check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Verify main imports
+        run: python -c "from main import app; print('API imports OK')"
+
   deploy:
+    name: Deploy to VPS
+    needs: [test-back, lint-back]
+    if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'recette')
     runs-on: ubuntu-latest
     steps:
       - name: Determine environment
