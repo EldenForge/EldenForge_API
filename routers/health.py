@@ -13,12 +13,14 @@ router = APIRouter()
 _DB_TIMEOUT_S = float(os.getenv("HEALTH_DB_TIMEOUT_S", "5.0"))
 
 
-@router.get("")
+@router.api_route("", methods=["GET", "HEAD"])
 async def health(response: Response, session: AsyncSession = Depends(get_session)):
     """Health check utilisé par UptimeRobot.
 
     Renvoie 200 si l'app répond et si Neon accepte une requête triviale.
-    Renvoie 503 si la base ne répond pas dans le délai imparti.
+    Renvoie 503 si la base ne répond pas dans le délai imparti. Supporte
+    GET et HEAD (le plan gratuit UptimeRobot n'autorise pas le choix de
+    la méthode HTTP côté monitor).
     """
     checks: dict[str, dict] = {}
     overall_ok = True
