@@ -1,4 +1,5 @@
 from .auth import router as auth_router
+from .health import router as health_router
 from .builds import router as builds_router
 from .users import router as users_router
 from .public_builds import router as public_builds_router
@@ -21,6 +22,7 @@ from .talismans import router as talismans_router
 from .weapons import router as weapons_router
 
 all_routers = [
+    (health_router, "/health", ["Health"]),
     (auth_router, "/auth", ["Auth"]),
     (builds_router, "/builds", ["Builds"]),
     (users_router, "/users", ["Users"]),
