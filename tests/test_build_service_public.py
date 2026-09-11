@@ -53,6 +53,40 @@ async def test_list_public_filter_tags(db_session):
     assert {r.name for r in rows} == {"str"}
 
 
+async def test_list_liked_by_user_returns_only_liked_public(db_session):
+    from models.build_like import BuildLike
+    author = await _user(db_session, "a@x.com", "Author")
+    fan = await _user(db_session, "b@x.com", "Fan")
+    svc = BuildService(db_session)
+    b_pub_liked = await svc.create(author, BuildCreateIn(name="liked", data={}, is_public=True))
+    await svc.create(author, BuildCreateIn(name="unliked", data={}, is_public=True))
+    b_priv = await svc.create(author, BuildCreateIn(name="privliked", data={}, is_public=False))
+    db_session.add(BuildLike(user_id=fan.id, build_id=b_pub_liked.id))
+    db_session.add(BuildLike(user_id=fan.id, build_id=b_priv.id))
+    await db_session.flush()
+
+    rows = await svc.list_liked_by_user(fan, limit=20, offset=0)
+    assert {r.name for r in rows} == {"liked"}
+    assert all(r.liked_by_me for r in rows)
+
+
+async def test_list_liked_by_user_orders_most_recent_first(db_session):
+    from models.build_like import BuildLike
+    from datetime import datetime, timezone, timedelta
+    author = await _user(db_session, "a@x.com", "Author")
+    fan = await _user(db_session, "b@x.com", "Fan")
+    svc = BuildService(db_session)
+    b1 = await svc.create(author, BuildCreateIn(name="first", data={}, is_public=True))
+    b2 = await svc.create(author, BuildCreateIn(name="second", data={}, is_public=True))
+    now = datetime.now(timezone.utc)
+    db_session.add(BuildLike(user_id=fan.id, build_id=b1.id, created_at=now - timedelta(hours=1)))
+    db_session.add(BuildLike(user_id=fan.id, build_id=b2.id, created_at=now))
+    await db_session.flush()
+
+    rows = await svc.list_liked_by_user(fan, limit=20, offset=0)
+    assert [r.name for r in rows] == ["second", "first"]
+
+
 async def test_get_public_404_if_private_other(db_session):
     author = await _user(db_session, "a@x.com", "A")
     other = await _user(db_session, "b@x.com", "B")

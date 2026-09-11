@@ -245,6 +245,52 @@ class BuildService:
             for b, author_pseudo in records
         ]
 
+    async def list_liked_by_user(
+        self, user: User, limit: int, offset: int,
+    ) -> list[PublicBuildRow]:
+        """Builds publics likés par l'utilisateur, plus récents d'abord (ordre du like)."""
+        from models.build_like import BuildLike
+        from models.user import User as _User
+
+        stmt = (
+            select(Build, _User.pseudo.label("author_pseudo"), BuildLike.created_at.label("liked_at"))
+            .join(BuildLike, BuildLike.build_id == Build.id)
+            .join(_User, _User.id == Build.user_id)
+            .where(BuildLike.user_id == user.id, Build.is_public.is_(True))
+            .order_by(BuildLike.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        records = (await self._session.execute(stmt)).all()
+
+        from core import datasets as _datasets
+        wpn_ids: set[str] = set()
+        for b, _, _liked_at in records:
+            wid = ((b.data or {}).get("weapons") or {}).get("right")
+            if isinstance(wid, str) and wid:
+                wpn_ids.add(wid)
+        img_by_id: dict[str, str] = {}
+        if wpn_ids:
+            df = _datasets.get("weapons")
+            if df is not None:
+                sub = df[df["id"].isin(wpn_ids)][["id", "image"]]
+                for _, r in sub.iterrows():
+                    img_by_id[str(r["id"])] = str(r["image"]) if r["image"] is not None else ""
+
+        return [
+            PublicBuildRow(
+                id=b.id, name=b.name, description=b.description, tags=list(b.tags),
+                like_count=b.like_count, created_at=b.created_at,
+                author_pseudo=author_pseudo, liked_by_me=True,
+                intent=b.intent,
+                primary_weapon_image=img_by_id.get(
+                    ((b.data or {}).get("weapons") or {}).get("right") or "", None
+                ) or None,
+                has_dlc=_has_dlc_items(b.data),
+            )
+            for b, author_pseudo, _liked_at in records
+        ]
+
     async def get_public(self, viewer, build_id) -> PublicBuildDetailRow:
         from models.build_like import BuildLike
         from models.user import User as _User

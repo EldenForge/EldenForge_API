@@ -93,3 +93,37 @@ async def test_post_change_password_weak_new_422(client, db_session):
         json={"current_password": "GoodPass123", "new_password": "weak"},
     )
     assert r.status_code == 422
+
+
+async def test_get_users_me_likes_401_without_auth(client):
+    r = await client.get("/users/me/likes")
+    assert r.status_code == 401
+
+
+async def test_get_users_me_likes_returns_only_liked_public(client, db_session):
+    from models.build_like import BuildLike
+    await _verified_login(client, db_session)
+    author_reg = {"email": "author@x.com", "pseudo": "Author", "password": "GoodPass123"}
+    await client.post("/auth/register", json=author_reg)
+    author = (
+        await db_session.execute(select(User).where(User.email == author_reg["email"]))
+    ).scalar_one()
+    author.email_verified_at = datetime.now(timezone.utc)
+    await db_session.flush()
+
+    from services.build_service import BuildService
+    from schemas.build import BuildCreateIn
+    svc = BuildService(db_session)
+    b_pub = await svc.create(author, BuildCreateIn(name="pub-liked", data={}, is_public=True))
+    b_pub_unliked = await svc.create(author, BuildCreateIn(name="pub-unliked", data={}, is_public=True))
+    await db_session.commit()
+
+    me = (await db_session.execute(select(User).where(User.email == REGISTER["email"]))).scalar_one()
+    db_session.add(BuildLike(user_id=me.id, build_id=b_pub.id))
+    await db_session.commit()
+
+    r = await client.get("/users/me/likes")
+    assert r.status_code == 200
+    names = {b["name"] for b in r.json()}
+    assert names == {"pub-liked"}
+    assert all(b["liked_by_me"] for b in r.json())
