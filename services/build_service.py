@@ -63,6 +63,28 @@ def _has_dlc_items(data) -> bool:
     return any(s.startswith("sote-") for s in _iter_item_ids(data))
 
 
+def _primary_weapon_id(data) -> str | None:
+    """Retourne l'id de l'arme main-droite du loadout actif d'un build.
+
+    Priorité au format v2 (data.loadouts[activeIndex].weapons.right) puis
+    fallback sur le format v1 legacy (data.weapons.right).
+    """
+    if not isinstance(data, dict):
+        return None
+    loadouts = data.get("loadouts")
+    if isinstance(loadouts, list) and loadouts:
+        idx = data.get("activeIndex", 0)
+        if not isinstance(idx, int) or idx < 0 or idx >= len(loadouts):
+            idx = 0
+        weapons = (loadouts[idx] or {}).get("weapons") or {}
+        wid = weapons.get("right")
+        if isinstance(wid, str) and wid:
+            return wid
+    weapons = data.get("weapons") or {}
+    wid = weapons.get("right")
+    return wid if isinstance(wid, str) and wid else None
+
+
 @dataclass
 class PublicBuildRow:
     id: object
@@ -220,8 +242,8 @@ class BuildService:
         from core import datasets as _datasets
         wpn_ids: set[str] = set()
         for b, _ in records:
-            wid = ((b.data or {}).get("weapons") or {}).get("right")
-            if isinstance(wid, str) and wid:
+            wid = _primary_weapon_id(b.data)
+            if wid:
                 wpn_ids.add(wid)
         img_by_id: dict[str, str] = {}
         if wpn_ids:
@@ -237,9 +259,7 @@ class BuildService:
                 like_count=b.like_count, created_at=b.created_at,
                 author_pseudo=author_pseudo, liked_by_me=b.id in liked_ids,
                 intent=b.intent,
-                primary_weapon_image=img_by_id.get(
-                    ((b.data or {}).get("weapons") or {}).get("right") or "", None
-                ) or None,
+                primary_weapon_image=img_by_id.get(_primary_weapon_id(b.data) or "", None) or None,
                 has_dlc=_has_dlc_items(b.data),
             )
             for b, author_pseudo in records
@@ -266,8 +286,8 @@ class BuildService:
         from core import datasets as _datasets
         wpn_ids: set[str] = set()
         for b, _, _liked_at in records:
-            wid = ((b.data or {}).get("weapons") or {}).get("right")
-            if isinstance(wid, str) and wid:
+            wid = _primary_weapon_id(b.data)
+            if wid:
                 wpn_ids.add(wid)
         img_by_id: dict[str, str] = {}
         if wpn_ids:
@@ -283,9 +303,7 @@ class BuildService:
                 like_count=b.like_count, created_at=b.created_at,
                 author_pseudo=author_pseudo, liked_by_me=True,
                 intent=b.intent,
-                primary_weapon_image=img_by_id.get(
-                    ((b.data or {}).get("weapons") or {}).get("right") or "", None
-                ) or None,
+                primary_weapon_image=img_by_id.get(_primary_weapon_id(b.data) or "", None) or None,
                 has_dlc=_has_dlc_items(b.data),
             )
             for b, author_pseudo, _liked_at in records
